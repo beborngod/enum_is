@@ -6,6 +6,7 @@ enum Mixed {
     Unit,
     Tuple(u8, u8),
     Struct { x: i32, y: i32 },
+    DiffPrefix,
 }
 
 #[test]
