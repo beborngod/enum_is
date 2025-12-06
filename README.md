@@ -7,6 +7,8 @@ method (in `snake_case`) that returns `true` when `self` matches that variant.
 
 Works with unit, tuple, and struct variants.
 
+You can also ignore specific variants with `#[enum_is(ignore)]`.
+
 ---
 
 ## Example
@@ -40,6 +42,22 @@ impl Mode {
     pub fn is_normal(&self) -> bool { /* ... */ }
     pub fn is_slow(&self) -> bool { /* ... */ }
 }
+```
+
+### Ignoring variants
+
+Use `#[enum_is(ignore)]` on any variant you don’t want a predicate for:
+
+```rust
+use enum_is::EnumIs;
+
+#[derive(EnumIs)]
+enum MaybeNumber {
+    Int(i32),
+    #[enum_is(ignore)]
+    NotNumber,
+}
+// v.is_not_number() is NOT generated
 ```
 
 ---

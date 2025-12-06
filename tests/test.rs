@@ -5,7 +5,11 @@ use enum_is::EnumIs;
 enum Mixed {
     Unit,
     Tuple(u8, u8),
-    Struct { x: i32, y: i32 },
+    Struct {
+        x: i32,
+        y: i32,
+    },
+    #[enum_is(ignore)]
     DiffPrefix,
 }
 
@@ -30,7 +34,6 @@ fn tuple_variant() {
 #[test]
 fn struct_variant() {
     let v = Mixed::Struct { x: 10, y: 20 };
-
     assert!(v.is_struct());
     assert!(!v.is_unit());
     assert!(!v.is_tuple());
