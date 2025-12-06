@@ -11,6 +11,8 @@ enum Mixed {
     },
     #[enum_is(ignore)]
     DiffPrefix,
+    #[enum_is(rename = "is_renamed")]
+    Named,
 }
 
 #[test]
@@ -37,4 +39,10 @@ fn struct_variant() {
     assert!(v.is_struct());
     assert!(!v.is_unit());
     assert!(!v.is_tuple());
+}
+
+#[test]
+fn rename() {
+    let v = Mixed::Named;
+    assert!(v.is_renamed());
 }

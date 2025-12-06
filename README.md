@@ -7,7 +7,7 @@ method (in `snake_case`) that returns `true` when `self` matches that variant.
 
 Works with unit, tuple, and struct variants.
 
-You can also ignore specific variants with `#[enum_is(ignore)]`.
+You can also ignore specific variants with `#[enum_is(ignore)]` or rename a method with `#[enum_is(rename = "...")]`.
 
 ---
 
@@ -26,10 +26,6 @@ enum Mode {
 fn handle(mode: Mode) {
     if mode.is_fast() {
         // handle fast mode
-    }
-
-    if mode.is_slow() {
-        // handle slow mode
     }
 }
 ```
@@ -58,6 +54,23 @@ enum MaybeNumber {
     NotNumber,
 }
 // v.is_not_number() is NOT generated
+```
+
+### Renaming methods
+
+Use `#[enum_is(rename = "...")]` on a variant to override its method name:
+
+```rust
+use enum_is::EnumIs;
+
+#[derive(EnumIs)]
+enum Drive {
+    #[enum_is(rename = "is_dos")]
+    DriveOrStop,
+}
+
+let o = Drive::DriveOrStop;
+assert!(o.is_dos());
 ```
 
 ---
@@ -153,7 +166,4 @@ Internally, the macro uses `matches!` with:
 
 ## Limitations
 
-- `#[derive(EnumIs)]` must be used on **enums** only.  
-  Using it on a struct or union will produce a compile error.
-- Method names are generated purely from the variant identifiers; there is no
-  customization (attributes, renames, ignores) yet.
+- `#[derive(EnumIs)]` must be used on **enums** only.

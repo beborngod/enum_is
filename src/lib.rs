@@ -29,7 +29,9 @@ pub fn derive_enum_is(input: TokenStream) -> TokenStream {
             return None;
         }
 
-        let method_name_str = format!("is_{}", variant_ident.to_string().to_snake_case());
+        let method_name_str = variant_rename(&variant.attrs)
+            .unwrap_or_else(|| format!("is_{}", variant_ident.to_string().to_snake_case()));
+
         let method_ident = syn::Ident::new(&method_name_str, variant_ident.span());
 
         let pat = match &variant.fields {
@@ -55,7 +57,7 @@ pub fn derive_enum_is(input: TokenStream) -> TokenStream {
     TokenStream::from(expanded)
 }
 
-/// #[enum_is(ignore)]
+/// `#[enum_is(ignore)]`
 fn variant_is_ignored(attrs: &[Attribute]) -> bool {
     for attr in attrs {
         if !attr.path().is_ident("enum_is") {
@@ -77,4 +79,26 @@ fn variant_is_ignored(attrs: &[Attribute]) -> bool {
     }
 
     false
+}
+
+/// `#[enum_is(rename = "...")]`
+fn variant_rename(attrs: &[Attribute]) -> Option<String> {
+    let mut result: Option<String> = None;
+
+    for attr in attrs {
+        if !attr.path().is_ident("enum_is") {
+            continue;
+        }
+
+        // list-style: #[enum_is(rename = "is_fok")]
+        let _ = attr.parse_nested_meta(|meta| {
+            if meta.path.is_ident("rename") {
+                let lit: syn::LitStr = meta.value()?.parse()?;
+                result = Some(lit.value());
+            }
+            Ok(())
+        });
+    }
+
+    result
 }
