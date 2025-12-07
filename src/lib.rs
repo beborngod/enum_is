@@ -6,6 +6,7 @@ use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::quote;
 use std::collections::BTreeMap;
 use syn::{Attribute, Data, DeriveInput, Error, Fields, parse_macro_input};
+use syn::spanned::Spanned;
 
 #[proc_macro_derive(EnumIs, attributes(enum_is))]
 pub fn derive_enum_is(input: TokenStream) -> TokenStream {
@@ -30,11 +31,17 @@ pub fn derive_enum_is(input: TokenStream) -> TokenStream {
         .filter_map(|variant| {
             let variant_ident = &variant.ident;
 
-            if variant_is_ignored(&variant.attrs) {
+            let attrs = match parse_enum_is_attrs(&variant.attrs) {
+                Ok(attrs) => attrs,
+                Err(err) => return Some(err.to_compile_error()),
+            };
+
+            if attrs.ignore {
                 return None;
             }
 
-            let method_name_str = variant_rename(&variant.attrs)
+            let method_name_str = attrs
+                .rename
                 .unwrap_or_else(|| format!("is_{}", variant_ident.to_string().to_snake_case()));
 
             let method_ident = syn::Ident::new(&method_name_str, variant_ident.span());
@@ -45,7 +52,7 @@ pub fn derive_enum_is(input: TokenStream) -> TokenStream {
                 Fields::Named(_) => quote! { Self::#variant_ident { .. } },
             };
 
-            for group in variant_groups(&variant.attrs) {
+            for group in attrs.groups {
                 group_map.entry(group).or_default().push(pat.clone());
             }
 
@@ -81,68 +88,58 @@ pub fn derive_enum_is(input: TokenStream) -> TokenStream {
     TokenStream::from(expanded)
 }
 
-/// `#[enum_is(ignore)]`
-fn variant_is_ignored(attrs: &[Attribute]) -> bool {
-    for attr in attrs {
-        if !attr.path().is_ident("enum_is") {
-            continue;
-        }
-
-        let mut ignore = false;
-
-        let _ = attr.parse_nested_meta(|meta| {
-            if meta.path.is_ident("ignore") {
-                ignore = true;
-            }
-            Ok(())
-        });
-
-        if ignore {
-            return true;
-        }
-    }
-
-    false
+struct EnumIsAttrs {
+    ignore: bool,
+    rename: Option<String>,
+    groups: Vec<String>,
 }
 
-/// `#[enum_is(rename = "...")]`
-fn variant_rename(attrs: &[Attribute]) -> Option<String> {
-    let mut result: Option<String> = None;
+fn parse_enum_is_attrs(attrs: &[Attribute]) -> Result<EnumIsAttrs, Error> {
+    let mut parsed = EnumIsAttrs {
+        ignore: false,
+        rename: None,
+        groups: Vec::new(),
+    };
+    let mut enum_is_span: Option<Span> = None;
 
     for attr in attrs {
         if !attr.path().is_ident("enum_is") {
             continue;
         }
 
-        let _ = attr.parse_nested_meta(|meta| {
+        if enum_is_span.is_none() {
+            enum_is_span = Some(attr.span());
+        }
+
+        attr.parse_nested_meta(|meta| {
+            if meta.path.is_ident("ignore") {
+                parsed.ignore = true;
+                return Ok(());
+            }
+
             if meta.path.is_ident("rename") {
                 let lit: syn::LitStr = meta.value()?.parse()?;
-                result = Some(lit.value());
+                parsed.rename = Some(lit.value());
+                return Ok(());
             }
-            Ok(())
-        });
-    }
 
-    result
-}
-
-/// `#[enum_is(group = "...")]`
-fn variant_groups(attrs: &[Attribute]) -> Vec<String> {
-    let mut result = Vec::new();
-
-    for attr in attrs {
-        if !attr.path().is_ident("enum_is") {
-            continue;
-        }
-
-        let _ = attr.parse_nested_meta(|meta| {
             if meta.path.is_ident("group") {
                 let lit: syn::LitStr = meta.value()?.parse()?;
-                result.push(lit.value());
+                parsed.groups.push(lit.value());
+                return Ok(());
             }
-            Ok(())
-        });
+
+            Err(meta.error("unsupported enum_is attribute"))
+        })?;
     }
 
-    result
+    if parsed.ignore && (parsed.rename.is_some() || !parsed.groups.is_empty()) {
+        let span = enum_is_span.unwrap_or_else(Span::call_site);
+        return Err(Error::new(
+            span,
+            "#[enum_is(ignore)] cannot be combined with rename/group",
+        ));
+    }
+
+    Ok(parsed)
 }

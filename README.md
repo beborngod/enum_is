@@ -12,6 +12,7 @@ Options:
 - Skip a variant with `#[enum_is(ignore)]`.
 - Override a method name with `#[enum_is(rename = "...")]`.
 - Generate a shared predicate with `#[enum_is(group = "...")]`.
+- `group` and `rename` can be combined in one `#[enum_is(...)]` (or separate ones); `ignore` must stand alone.
 
 ## Install
 
