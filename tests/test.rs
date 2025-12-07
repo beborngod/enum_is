@@ -10,8 +10,8 @@ enum Mixed {
     #[enum_is(group = "is_uts")]
     Struct { x: i32, y: i32 },
     #[enum_is(ignore)]
-    DiffPrefix,
-    #[enum_is(rename = "is_renamed")]
+    Ignored,
+    #[enum_is(group = "is_uts", rename = "is_renamed")]
     Named,
 }
 
@@ -45,7 +45,8 @@ fn struct_variant() {
 }
 
 #[test]
-fn rename() {
+fn rename_and_group() {
     let v = Mixed::Named;
     assert!(v.is_renamed());
+    assert!(v.is_uts());
 }
