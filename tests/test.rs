@@ -3,12 +3,12 @@ use enum_is::EnumIs;
 #[allow(dead_code)]
 #[derive(EnumIs, Debug)]
 enum Mixed {
+    #[enum_is(group = "is_uts")]
     Unit,
+    #[enum_is(group = "is_uts")]
     Tuple(u8, u8),
-    Struct {
-        x: i32,
-        y: i32,
-    },
+    #[enum_is(group = "is_uts")]
+    Struct { x: i32, y: i32 },
     #[enum_is(ignore)]
     DiffPrefix,
     #[enum_is(rename = "is_renamed")]
@@ -22,6 +22,7 @@ fn unit_variant() {
     assert!(!v.is_tuple());
     assert!(v.is_unit());
     assert!(!v.is_struct());
+    assert!(v.is_uts());
 }
 
 #[test]
@@ -31,6 +32,7 @@ fn tuple_variant() {
     assert!(v.is_tuple());
     assert!(!v.is_unit());
     assert!(!v.is_struct());
+    assert!(v.is_uts());
 }
 
 #[test]
@@ -39,6 +41,7 @@ fn struct_variant() {
     assert!(v.is_struct());
     assert!(!v.is_unit());
     assert!(!v.is_tuple());
+    assert!(v.is_uts());
 }
 
 #[test]

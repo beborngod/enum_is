@@ -7,9 +7,26 @@ method (in `snake_case`) that returns `true` when `self` matches that variant.
 
 Works with unit, tuple, and struct variants.
 
-You can also ignore specific variants with `#[enum_is(ignore)]` or rename a method with `#[enum_is(rename = "...")]`.
+Options:
 
----
+- Skip a variant with `#[enum_is(ignore)]`.
+- Override a method name with `#[enum_is(rename = "...")]`.
+- Generate a shared predicate with `#[enum_is(group = "...")]`.
+
+## Install
+
+Add to `Cargo.toml`:
+
+```toml
+[dependencies]
+enum_is = "0.2"
+```
+
+Import the derive:
+
+```rust
+use enum_is::EnumIs;
+```
 
 ## Example
 
@@ -32,7 +49,7 @@ fn handle(mode: Mode) {
 
 Generated methods look like:
 
-```rust
+```rust,ignore
 impl Mode {
     pub fn is_fast(&self) -> bool { /* ... */ }
     pub fn is_normal(&self) -> bool { /* ... */ }
@@ -40,7 +57,7 @@ impl Mode {
 }
 ```
 
-### Ignoring variants
+## Ignoring variants
 
 Use `#[enum_is(ignore)]` on any variant you don’t want a predicate for:
 
@@ -56,7 +73,7 @@ enum MaybeNumber {
 // v.is_not_number() is NOT generated
 ```
 
-### Renaming methods
+## Renaming methods
 
 Use `#[enum_is(rename = "...")]` on a variant to override its method name:
 
@@ -73,24 +90,26 @@ let o = Drive::DriveOrStop;
 assert!(o.is_dos());
 ```
 
----
+## Grouping variants
 
-## Installation
-
-In your `Cargo.toml`:
-
-```toml
-[dependencies]
-enum_is = "0.1"
-```
-
-Then:
+Use `#[enum_is(group = "...")]` to generate a shared predicate for multiple variants. The group name becomes the method name.
 
 ```rust
 use enum_is::EnumIs;
-```
 
----
+#[derive(EnumIs)]
+enum Message {
+    Ping,
+    #[enum_is(group = "is_payload")]
+    Data { id: u64, payload: Vec<u8> },
+    #[enum_is(group = "is_payload")]
+    Binary(Vec<u8>),
+}
+
+let m = Message::Binary(vec![]);
+assert!(m.is_payload());
+assert!(!m.is_ping());
+```
 
 ## Supported enums
 
@@ -99,6 +118,8 @@ use enum_is::EnumIs;
 - **Unit variants**
 
   ```rust
+  use enum_is::EnumIs;
+
   #[derive(EnumIs)]
   enum Status {
       Ok,
@@ -113,6 +134,8 @@ use enum_is::EnumIs;
 - **Tuple variants**
 
   ```rust
+  use enum_is::EnumIs;
+
   #[derive(EnumIs)]
   enum Value {
       Int(i32),
@@ -127,6 +150,8 @@ use enum_is::EnumIs;
 - **Struct variants**
 
   ```rust
+  use enum_is::EnumIs;
+
   #[derive(EnumIs)]
   enum Message {
       Ping,
@@ -137,8 +162,6 @@ use enum_is::EnumIs;
   assert!(m.is_data());
   assert!(!m.is_ping());
   ```
-
----
 
 ## Naming rules
 
@@ -161,8 +184,6 @@ Internally, the macro uses `matches!` with:
 - `Self::Variant` for unit variants
 - `Self::Variant(..)` for tuple variants
 - `Self::Variant { .. }` for struct variants
-
----
 
 ## Limitations
 

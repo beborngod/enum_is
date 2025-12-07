@@ -1,8 +1,11 @@
 #![doc = include_str!("../README.md")]
+
 use heck::ToSnakeCase;
 use proc_macro::TokenStream;
+use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::quote;
-use syn::{Attribute, Data, DeriveInput, Fields, parse_macro_input};
+use std::collections::BTreeMap;
+use syn::{Attribute, Data, DeriveInput, Error, Fields, parse_macro_input};
 
 #[proc_macro_derive(EnumIs, attributes(enum_is))]
 pub fn derive_enum_is(input: TokenStream) -> TokenStream {
@@ -13,45 +16,65 @@ pub fn derive_enum_is(input: TokenStream) -> TokenStream {
     let data_enum = match input.data {
         Data::Enum(e) => e,
         _ => {
-            return syn::Error::new_spanned(
-                enum_name,
-                "#[derive(EnumIs)] can only be used on enums",
-            )
-            .to_compile_error()
-            .into();
+            return Error::new_spanned(enum_name, "#[derive(EnumIs)] can only be used on enums")
+                .to_compile_error()
+                .into();
         }
     };
 
-    let methods = data_enum.variants.into_iter().filter_map(|variant| {
-        let variant_ident = &variant.ident;
+    let mut group_map: BTreeMap<String, Vec<TokenStream2>> = BTreeMap::new();
 
-        // #[enum_is(ignore)]
-        if variant_is_ignored(&variant.attrs) {
-            return None;
-        }
+    let methods: Vec<TokenStream2> = data_enum
+        .variants
+        .into_iter()
+        .filter_map(|variant| {
+            let variant_ident = &variant.ident;
 
-        let method_name_str = variant_rename(&variant.attrs)
-            .unwrap_or_else(|| format!("is_{}", variant_ident.to_string().to_snake_case()));
+            if variant_is_ignored(&variant.attrs) {
+                return None;
+            }
 
-        let method_ident = syn::Ident::new(&method_name_str, variant_ident.span());
+            let method_name_str = variant_rename(&variant.attrs)
+                .unwrap_or_else(|| format!("is_{}", variant_ident.to_string().to_snake_case()));
 
-        let pat = match &variant.fields {
-            Fields::Unit => quote! { Self::#variant_ident },
-            Fields::Unnamed(_) => quote! { Self::#variant_ident (..) },
-            Fields::Named(_) => quote! { Self::#variant_ident { .. } },
-        };
+            let method_ident = syn::Ident::new(&method_name_str, variant_ident.span());
 
-        Some(quote! {
-            #[inline]
-            pub fn #method_ident(&self) -> bool {
-                matches!(self, #pat)
+            let pat: TokenStream2 = match &variant.fields {
+                Fields::Unit => quote! { Self::#variant_ident },
+                Fields::Unnamed(_) => quote! { Self::#variant_ident (..) },
+                Fields::Named(_) => quote! { Self::#variant_ident { .. } },
+            };
+
+            for group in variant_groups(&variant.attrs) {
+                group_map.entry(group).or_default().push(pat.clone());
+            }
+
+            Some(quote! {
+                #[inline]
+                pub fn #method_ident(&self) -> bool {
+                    matches!(self, #pat)
+                }
+            })
+        })
+        .collect();
+
+    let group_methods: Vec<TokenStream2> = group_map
+        .into_iter()
+        .map(|(name, patterns)| {
+            let method_ident = syn::Ident::new(&name, Span::call_site());
+            quote! {
+                #[inline]
+                pub fn #method_ident(&self) -> bool {
+                    matches!(self, #( #patterns )|* )
+                }
             }
         })
-    });
+        .collect();
 
     let expanded = quote! {
         impl #enum_name {
             #(#methods)*
+            #(#group_methods)*
         }
     };
 
@@ -91,11 +114,31 @@ fn variant_rename(attrs: &[Attribute]) -> Option<String> {
             continue;
         }
 
-        // list-style: #[enum_is(rename = "is_fok")]
         let _ = attr.parse_nested_meta(|meta| {
             if meta.path.is_ident("rename") {
                 let lit: syn::LitStr = meta.value()?.parse()?;
                 result = Some(lit.value());
+            }
+            Ok(())
+        });
+    }
+
+    result
+}
+
+/// `#[enum_is(group = "...")]`
+fn variant_groups(attrs: &[Attribute]) -> Vec<String> {
+    let mut result = Vec::new();
+
+    for attr in attrs {
+        if !attr.path().is_ident("enum_is") {
+            continue;
+        }
+
+        let _ = attr.parse_nested_meta(|meta| {
+            if meta.path.is_ident("group") {
+                let lit: syn::LitStr = meta.value()?.parse()?;
+                result.push(lit.value());
             }
             Ok(())
         });
